@@ -348,9 +348,11 @@ void Print() {
   Serial.print(" Error: " + String(error));      // this will show the calculated error (-3 through 3)
 
   Serial.println("  LMotor:  " + String(M1SpeedtoMotor) + "  RMotor:  " + String(M2SpeedtoMotor));    // This prints the arduino output to each motor so you can see what the values are (0-255)
-  setLeds(0); 
+  
+  // commented out LEDS because we need it to be straight to test while tethered
+  //setLeds(0); 
   delay(100);                                    // just here to slow down the output for easier reading. Don't comment out or else it'll slow down the processor on the arduino
-  setLeds(1); 
+  //setLeds(1); 
   delay(100); 
 
 } // end Print()
