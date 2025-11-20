@@ -39,7 +39,7 @@
 
 #define PRINTALLDATA        1  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
                                 // !! Turn to 0 when running robot untethered
-#define NOMINALSPEED        30 // This is the base speed for both motors, can also be increased by using potentiometers
+#define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
 
 // ************************************************************************************************* //
 
@@ -66,6 +66,7 @@ int led_Pins[] = {46};  // LEDs to indicate what part of calibration you're on a
 
 //Variables Potentiometer Reading
 int SpRead = 0; // speed increase
+int Sp_range = 100; // potentiometer increase in speed from -range to +range
 int kPRead = 0; // proportional gain
 int kIRead = 0; // integral gain
 int kDRead = 0; // derivative gain
@@ -207,7 +208,10 @@ void setLeds(int x) {
 // function to read and map values from potentiometers
 void ReadPotentiometers() {
   // Call on user-defined function to read Potentiometer values
-  SpRead = ReadPotentiometerHelper(S_pin, 0, 4095, 0, 100); // We want to read a potentiometer for S_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
+
+  // Potentiometer range from -Sp_range to Sp_range.
+  SpRead = ReadPotentiometerHelper(S_pin, 0, 4095, -Sp_range, Sp_range); // We want to read a potentiometer for S_pin with resolution from 0 to 1023 
+  
   kPRead = ReadPotentiometerHelper(P_pin, 0, 4095, 0, 100); // We want to read a potentiometer for P_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
   kIRead = ReadPotentiometerHelper(I_pin, 0, 4095, 0, 100); // We want to read a potentiometer for I_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
   kDRead = ReadPotentiometerHelper(D_pin, 0, 4095, 0, 100); // We want to read a potentiometer for D_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
