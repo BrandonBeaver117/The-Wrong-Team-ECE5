@@ -135,7 +135,7 @@ void Calibrate() {
   CalibrateHelper(numberOfMeasurements, false); // White Calibration
 
   setLeds(0);                                   // Turn off LEDs to indicate user to calibrate other color
-  delay(2000);
+  delay(5000);
   
   CalibrateHelper(numberOfMeasurements, true);  // Black Calibration
 
