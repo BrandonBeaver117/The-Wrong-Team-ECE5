@@ -37,7 +37,7 @@
 // ************************************************************************************************* //
 // Change Robot Settings here
 
-#define PRINTALLDATA        1  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
+#define PRINTALLDATA        0  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
                                 // !! Turn to 0 when running robot untethered
 #define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
 
@@ -357,9 +357,12 @@ void Print() {
   Serial.println("  LMotor:  " + String(M1SpeedtoMotor) + "  RMotor:  " + String(M2SpeedtoMotor));    // This prints the arduino output to each motor so you can see what the values are (0-255)
   
   // commented out LEDS because we need it to be straight to test while tethered
+  // uhh, i think past me was saying how it should 
   //setLeds(0); 
-  delay(100);                                    // just here to slow down the output for easier reading. Don't comment out or else it'll slow down the processor on the arduino
+  // should be 200, but imo 20ms was good update speed for frc
+  // so 30 cannot be that far off
+  delay(30);                                    // just here to slow down the output for easier reading. Don't comment out or else it'll slow down the processor on the arduino
   //setLeds(1); 
-  delay(100); 
+  // delay(100); 
 
 } // end Print()
