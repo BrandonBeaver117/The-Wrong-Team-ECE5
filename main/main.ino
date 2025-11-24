@@ -67,6 +67,10 @@ int led_Pins[] = {46};  // LEDs to indicate what part of calibration you're on a
 //Variables Potentiometer Reading
 int SpRead = 0; // speed increase
 int Sp_range = 100; // potentiometer increase in speed from -range to +range
+
+
+// Tuned vals:
+// Speed: 100, P: 47, D: 0.2
 int kPRead = 0; // proportional gain
 int kIRead = 0; // integral gain
 int kDRead = 0; // derivative gain
@@ -298,7 +302,14 @@ void CalcError() {
 
     WeightedAve = ((float)numerator) / denominator;
 
+    // Uh, if the average error is like greater than 3, we just keep whatever error we had last
+    if(abs(WeightedAve - totalPhotoResistors/2) > 3){
+      return;
+    }
+
     error = (WeightedAve - totalPhotoResistors/2);
+
+    
   }
   
 } // end CalcError()
