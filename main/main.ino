@@ -277,8 +277,8 @@ void RunMotors() {
   M1SpeedtoMotor = min(NOMINALSPEED + SpRead + M1P, 255); // limits speed to 255
   M2SpeedtoMotor = min(NOMINALSPEED + SpRead + M2P, 255); // remember M1Sp & M2Sp is defined at beginning of code (default 60)
   
-  runMotorAtSpeed(LEFT, M2SpeedtoMotor); // run right motor 
-  runMotorAtSpeed(RIGHT, -M1SpeedtoMotor); // run left motor
+  runMotorAtSpeed(LEFT, -M2SpeedtoMotor); // run right motor 
+  runMotorAtSpeed(RIGHT, M1SpeedtoMotor); // run left motor
 } // end RunMotors()
 
 // A function that commands a specified motor to move towards a given direction at a given speed
