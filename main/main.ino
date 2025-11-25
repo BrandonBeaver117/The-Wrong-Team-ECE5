@@ -37,10 +37,11 @@
 // ************************************************************************************************* //
 // Change Robot Settings here
 
-#define PRINTALLDATA        0  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
+#define PRINTALLDATA        1  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
                                 // !! Turn to 0 when running robot untethered
 #define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
-
+ 
+#define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
 // ************************************************************************************************* //
 
 // ****** DECLARE PINS HERE  ****** 
@@ -93,6 +94,13 @@ int Turn, M1P = 0, M2P = 0;
 float error, lasterror = 0, sumerror = 0;
 float kP, kI, kD;
 
+// Modes for our bot
+enum class Mode {
+    LOOP,
+    SWEEP,
+    RACE
+};
+Mode mode = Mode::LOOP;
 
 // ************************************************************************************************* //
 // setup - runs once
@@ -118,7 +126,9 @@ void loop() {
 
   CalcError();          // Calculates error
 
-  PID_Turn();           // PID Control and Output to motors to turn
+  getTurn();           // Get turn output based on calculated error and pid
+
+  generatePower();
 
   RunMotors();          // Runs motors
   
@@ -128,6 +138,19 @@ void loop() {
 } // end loop()
 
 
+
+void generatePower(){
+   switch(mode){
+    case Mode::LOOP:
+      generateLoopPower();
+    case Mode::SWEEP:
+      generateSweepPower();
+    case MODE::RACE:
+      generateRacePower();
+      break;
+  }
+  lasterror = error;
+}
 
 // ************************************************************************************************* //
 // function to calibrate
@@ -139,7 +162,7 @@ void Calibrate() {
   CalibrateHelper(numberOfMeasurements, false); // White Calibration
 
   setLeds(0);                                   // Turn off LEDs to indicate user to calibrate other color
-  delay(5000);
+  delay(4500);
   
   CalibrateHelper(numberOfMeasurements, true);  // Black Calibration
 
@@ -315,42 +338,60 @@ void CalcError() {
 } // end CalcError()
 
 // ************************************************************************************************* //
+// get PD values
+
+struct PID {
+    int p;
+    int i;
+    float d;
+};
+
+double getTurn() {
+    PID r;
+
+    if(USEPOTENTIOMETERS){
+      r = {kpRead, 0, (float)kDRead * 0.01}
+    } else {
+      switch(mode){
+        case Mode::LOOP:
+          r = {40, 0, 0.2};
+          break;
+        case Mode::SWEEP:
+          r = {40, 0, 0.2};
+          break;
+        case MODE::RACE:
+          r = {40, 0, 0.2};
+          break;
+      }
+    }
+      
+    Turn = error * pid.p + (error - lasterror) * pid.d; // PID!!!!!!!!!!!!!
+    return Turn;
+}
+
+
+// ************************************************************************************************* //
 // PID Function
-void PID_Turn() {
-  kP = (float)kPRead * 1.;    // each of these scaling factors can change depending on how influential you want them to be
-  
-  // We not using kI - we'll just use feedforward (constant pushing lol)
-  //kI = (float)kIRead * 0.001;
-  kI = 0;
-  kD = (float)kDRead * 0.01;
+void generateRacePower() {
 
-  Turn = error * kP + sumerror * kI + (error - lasterror) * kD; // PID!!!!!!!!!!!!!
-
-  if (sumerror > 5)   // prevents integrator wind-up
-    sumerror = 5;
-  else if (sumerror < -5)
-    sumerror = -5;
-
-  if (error == 0)     // Reset sumerror if line is centered
-    sumerror = 0;
-
-  if (Turn < 0) {
-    M1P = -Turn;       // One motor becomes slower and the other faster
-    M2P = Turn;
-  }
-  else if (Turn > 0) {
-    M1P = -Turn;
-    M2P = Turn;
-  }
-  else {
-    M1P = 0;
-    M2P = 0;
-  }
-
-  lasterror = error;
-  sumerror = sumerror + error;
-
+  M1P = -Turn;       // One motor becomes slower and the other faster
+  M2P = Turn;
 } // end PID_Turn()
+
+// ************************************************************************************************* //
+// PID Function
+void generateLoopPower() {
+  M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
+  M2P = 1.5 * Turn;
+} 
+
+
+// ************************************************************************************************* //
+// PID Function
+void generateSweepPower() {
+  // Lowkey does not need to be that complicated
+  generateRacePower();
+} 
 
 // ************************************************************************************************* //
 // function to print values of interest
