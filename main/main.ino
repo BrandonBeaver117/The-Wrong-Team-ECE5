@@ -53,8 +53,8 @@ Mode mode = Mode::RACE;
 #define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
                                            
 #define LED_PIN    21 
-#define NUM_LEDS   7
-#define BRIGHTNESS 75
+#define NUM_LEDS   10
+#define BRIGHTNESS 50
 
 CRGB leds[NUM_LEDS];
 // ************************************************************************************************* //
@@ -498,7 +498,8 @@ void turnOffLEDS() {   // set all leds to black
   FastLED.show();
 }
 
-void turnOnLEDS() {   // set all leds to black
+void turnOnLEDS() { 
+  // set all the leds to white
   for (int i = 0; i < NUM_LEDS; i++) {
     leds[i] = CRGB::White;
   }
