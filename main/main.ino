@@ -32,15 +32,31 @@
 
 // Include files needed
 #include <L298NX2.h> // Using "L298N" library found through arduino library manager developed by Andrea Lombardo (https://github.com/AndreaLombardo/L298N)
-
+#include <FastLED.h> // Use LEDs for 
 // ************************************************************************************************* //
 // ************************************************************************************************* //
 // Change Robot Settings here
 
+// Modes for our bot
+enum class Mode {
+    LOOP,
+    SWEEP,
+    RACE
+};
+
+Mode mode = Mode::RACE;
+
 #define PRINTALLDATA        0  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
                                 // !! Turn to 0 when running robot untethered
 #define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
+ 
+#define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
+                                           
+#define LED_PIN    21 
+#define NUM_LEDS   10
+#define BRIGHTNESS 50
 
+CRGB leds[NUM_LEDS];
 // ************************************************************************************************* //
 
 // ****** DECLARE PINS HERE  ****** 
@@ -59,9 +75,7 @@ const int S_pin = 13; // Pin connected to Speed potentiometer
 const int P_pin = 12; // Pin connected to P term potentiometer
 const int I_pin = 11; // Pin connected to I term potentiometer
 const int D_pin = 10; // Pin connected to D term potentiometer
-                                                                 
-int led_Pins[] = {46};  // LEDs to indicate what part of calibration you're on and to illuminate the photoresistors
-
+     
 // ****** DECLARE Variables HERE  ****** 
 
 //Variables Potentiometer Reading
@@ -82,7 +96,6 @@ float LDRf[20];
 int LDR[20];    
 int rawPResistorData[20];  
 int totalPhotoResistors = sizeof(LDR_Pin) / sizeof(LDR_Pin[0]);  
-int numLEDs = sizeof(led_Pins) / sizeof(led_Pins[0]); 
 int MxRead, MxIndex, CriteriaForMax;
 int leftHighestPR, highestPResistor, rightHighestPR;
 float AveRead, WeightedAve;   
@@ -93,15 +106,13 @@ int Turn, M1P = 0, M2P = 0;
 float error, lasterror = 0, sumerror = 0;
 float kP, kI, kD;
 
-
 // ************************************************************************************************* //
 // setup - runs once
 void setup() {
   Serial.begin(9600);                            // For serial communication set up
-
-  for (int i = 0; i < numLEDs; i++)
-    pinMode(led_Pins[i], OUTPUT);                // Initialize all LEDs to output
-  
+  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip); // Initialize the led strip
+  FastLED.setBrightness(BRIGHTNESS); // Set the brightness (0 - 100)
+ 
   Calibrate();                                   // Calibrate black and white sensing
 
   ReadPotentiometers();                          // Read potentiometer values (Sp, P, I, & D)
@@ -112,13 +123,17 @@ void setup() {
 // loop - runs/loops forever
 void loop() {
 
+  setLeds(1);
+
   ReadPotentiometers(); // Read potentiometers
 
   ReadPhotoResistors(); // Read photoresistors 
 
   CalcError();          // Calculates error
 
-  PID_Turn();           // PID Control and Output to motors to turn
+  getTurn();           // Get turn output based on calculated error and pid
+
+  generatePower();
 
   RunMotors();          // Runs motors
   
@@ -128,6 +143,21 @@ void loop() {
 } // end loop()
 
 
+
+void generatePower(){
+   switch(mode){
+    case Mode::LOOP:
+      generateLoopPower();
+      break;
+    case Mode::SWEEP:
+      generateSweepPower();
+      break;
+    case Mode::RACE:
+      generateRacePower();
+      break;
+  }
+  lasterror = error;
+}
 
 // ************************************************************************************************* //
 // function to calibrate
@@ -139,7 +169,7 @@ void Calibrate() {
   CalibrateHelper(numberOfMeasurements, false); // White Calibration
 
   setLeds(0);                                   // Turn off LEDs to indicate user to calibrate other color
-  delay(5000);
+  delay(4500);
   
   CalibrateHelper(numberOfMeasurements, true);  // Black Calibration
 
@@ -204,8 +234,13 @@ void CalibrateHelper(int numberOfMeasurements, boolean ifCalibratingBlack) {
 
 // Set all LEDs to a certain brightness
 void setLeds(int x) {
-  for (int i = 0; i < numLEDs; i++)
-    digitalWrite(led_Pins[i], x);
+
+  if(x){
+    turnOnLEDS();
+  } else {
+    turnOffLEDS();
+  }
+
 }
 
 // **********Recall your Challenge #1 Code********************************************************************** //
@@ -243,8 +278,8 @@ void RunMotors() {
   M1SpeedtoMotor = min(NOMINALSPEED + SpRead + M1P, 255); // limits speed to 255
   M2SpeedtoMotor = min(NOMINALSPEED + SpRead + M2P, 255); // remember M1Sp & M2Sp is defined at beginning of code (default 60)
   
-  runMotorAtSpeed(LEFT, M2SpeedtoMotor); // run right motor 
-  runMotorAtSpeed(RIGHT, -M1SpeedtoMotor); // run left motor
+  runMotorAtSpeed(LEFT, -M2SpeedtoMotor); // run right motor 
+  runMotorAtSpeed(RIGHT, M1SpeedtoMotor); // run left motor
 } // end RunMotors()
 
 // A function that commands a specified motor to move towards a given direction at a given speed
@@ -265,92 +300,169 @@ void runMotorAtSpeed(side _side, int speed) {
   }
 }
 
+// *************************************************************************************************
+// Calculate error based on mode
+void CalcError() {
+  if (mode == Mode::SWEEP) {
+        // ===== Mode SWEEP: use middle 3 sensors only =====
+        int leftIdx   = 2;
+        int centerIdx = 3;
+        int rightIdx  = 4;
+
+        int MxReadLocal = -1;
+        int highestPR = centerIdx;
+
+        for (int i = leftIdx; i <= rightIdx; i++) {
+            if (LDR[i] > MxReadLocal) {
+                MxReadLocal = LDR[i];
+                highestPR = i;
+            }
+        }
+
+        float AveReadLocal = (LDR[leftIdx] + LDR[centerIdx] + LDR[rightIdx]) / 3.0;
+        float CriteriaForMax = 1.5;
+
+        if (MxReadLocal > CriteriaForMax * AveReadLocal) {
+            float numerator = LDR[leftIdx] * leftIdx + LDR[centerIdx] * centerIdx + LDR[rightIdx] * rightIdx;
+            float denominator = LDR[leftIdx] + LDR[centerIdx] + LDR[rightIdx];
+            WeightedAve = numerator / denominator;
+
+            float centerPos = centerIdx;
+            if (abs(WeightedAve - centerPos) > 1.5) return; // ignore false readings
+
+            // scale it from -1 to 1 to -3 to 3
+            error = (WeightedAve - centerPos) * 3;
+        }
+  } else {
+      // ===== Modes LOOP & RACE: original 7-sensor calculation =====
+      MxRead = -99;
+      AveRead = 0.0;
+      for (int i = 0; i < totalPhotoResistors; i++) { // This loop goes through each photoresistor and stores the photoresistor with the highest value to the variable 'highestPResistor'
+        if (MxRead < LDR[i]) {
+          MxRead = LDR[i];
+          MxIndex = -1 * (i - 3);
+          highestPResistor = (float)i;
+        }
+        AveRead = AveRead + (float)LDR[i] / (float)totalPhotoResistors;
+      }
+        
+      CriteriaForMax = 1.5; 
+      if (MxRead > CriteriaForMax * AveRead) { // Make sure that the highestPResistor is actually "seeing" a line. What happens if there is no line and we take the photoresistor that happens to have the highest value?
+
+        // Next we assign variables to hold the index of the left and right Photoresistor that has the highest value, though we have to make sure that we aren't checking a Photoresistor that doesn't exist.
+        // Ex: To the left of the left most photoresistor or the right of the right most photoresistor
+        if (highestPResistor != 0)
+          leftHighestPR = highestPResistor - 1;
+        else
+          leftHighestPR = highestPResistor;
+
+        if (highestPResistor != totalPhotoResistors - 1)
+          rightHighestPR = highestPResistor + 1;
+        else
+          rightHighestPR = highestPResistor;
+
+        // Next we take the percentage of "line" each of our left, middle, and right photoresistors sees and then we take the average, which is our error calculation
+        float numerator = (float)(LDR[leftHighestPR] * leftHighestPR) + (float)(LDR[highestPResistor] * highestPResistor) + (float)(LDR[rightHighestPR] * rightHighestPR);
+        float denominator = (float)LDR[leftHighestPR] + (float)LDR[highestPResistor] + (float)LDR[rightHighestPR];
+
+        WeightedAve = ((float)numerator) / denominator;
+
+        // Uh, if the average error is like greater than 3, we just keep whatever error we had last
+        if(abs(WeightedAve - totalPhotoResistors/2) > 3){
+          return;
+        }
+
+        error = (WeightedAve - totalPhotoResistors/2);    
+      }
+  }
+}
 
 
 // ************************************************************************************************* //
-// Calculate error from photoresistor readings
-void CalcError() {
-  MxRead = -99;
-  AveRead = 0.0;
-  for (int i = 0; i < totalPhotoResistors; i++) { // This loop goes through each photoresistor and stores the photoresistor with the highest value to the variable 'highestPResistor'
-    if (MxRead < LDR[i]) {
-      MxRead = LDR[i];
-      MxIndex = -1 * (i - 3);
-      highestPResistor = (float)i;
+// get PD values
+
+struct PID {
+    int p;
+    int i;
+    float d;
+};
+
+double getTurn() {
+    PID r;
+
+    if(USEPOTENTIOMETERS){
+      r = {kPRead, 0, (float)kDRead * 0.01};
+    } else {
+      switch(mode){
+        case Mode::LOOP:
+          r = {40, 0, 0.2};
+          break;
+        case Mode::SWEEP:
+          r = {40, 0, 0.2};
+          break;
+        case Mode::RACE:
+          r = {40, 0, 0.2};
+          break;
+      }
     }
-    AveRead = AveRead + (float)LDR[i] / (float)totalPhotoResistors;
-  }
-  
-  CriteriaForMax = 1.5; 
-  if (MxRead > CriteriaForMax * AveRead) { // Make sure that the highestPResistor is actually "seeing" a line. What happens if there is no line and we take the photoresistor that happens to have the highest value?
+    kP = r.p;
+    kI = r.i;
+    kD = r.d;
+    Turn = error * r.p + (error - lasterror) * r.d; // PID!!!!!!!!!!!!!
+    return Turn;
+}
 
-    // Next we assign variables to hold the index of the left and right Photoresistor that has the highest value, though we have to make sure that we aren't checking a Photoresistor that doesn't exist.
-    // Ex: To the left of the left most photoresistor or the right of the right most photoresistor
-    if (highestPResistor != 0)
-      leftHighestPR = highestPResistor - 1;
-    else
-      leftHighestPR = highestPResistor;
-
-    if (highestPResistor != totalPhotoResistors - 1)
-      rightHighestPR = highestPResistor + 1;
-    else
-      rightHighestPR = highestPResistor;
-
-    // Next we take the percentage of "line" each of our left, middle, and right photoresistors sees and then we take the average, which is our error calculation
-    float numerator = (float)(LDR[leftHighestPR] * leftHighestPR) + (float)(LDR[highestPResistor] * highestPResistor) + (float)(LDR[rightHighestPR] * rightHighestPR);
-    float denominator = (float)LDR[leftHighestPR] + (float)LDR[highestPResistor] + (float)LDR[rightHighestPR];
-
-    WeightedAve = ((float)numerator) / denominator;
-
-    // Uh, if the average error is like greater than 3, we just keep whatever error we had last
-    if(abs(WeightedAve - totalPhotoResistors/2) > 3){
-      return;
-    }
-
-    error = (WeightedAve - totalPhotoResistors/2);
-
-    
-  }
-  
-} // end CalcError()
 
 // ************************************************************************************************* //
 // PID Function
-void PID_Turn() {
-  kP = (float)kPRead * 1.;    // each of these scaling factors can change depending on how influential you want them to be
-  
-  // We not using kI - we'll just use feedforward (constant pushing lol)
-  //kI = (float)kIRead * 0.001;
-  kI = 0;
-  kD = (float)kDRead * 0.01;
+void generateRacePower() {
 
-  Turn = error * kP + sumerror * kI + (error - lasterror) * kD; // PID!!!!!!!!!!!!!
-
-  if (sumerror > 5)   // prevents integrator wind-up
-    sumerror = 5;
-  else if (sumerror < -5)
-    sumerror = -5;
-
-  if (error == 0)     // Reset sumerror if line is centered
-    sumerror = 0;
-
-  if (Turn < 0) {
-    M1P = -Turn;       // One motor becomes slower and the other faster
-    M2P = Turn;
-  }
-  else if (Turn > 0) {
-    M1P = -Turn;
-    M2P = Turn;
-  }
-  else {
-    M1P = 0;
-    M2P = 0;
-  }
-
-  lasterror = error;
-  sumerror = sumerror + error;
-
+  M1P = -Turn;       // One motor becomes slower and the other faster
+  M2P = Turn;
 } // end PID_Turn()
+
+// ************************************************************************************************* //
+// PID Function
+void generateLoopPower() {
+  float absError = abs(error);
+
+  // Linear scaling: small errors → factor ~1, large errors → factor ~2.5
+  float factor = 1.0 + (absError / 3) * 1.5;
+
+  // might need to flip...
+  // we too far to the right, thus we making left turn
+  if (error > 0) {
+    M1P = -0.5 * Turn;     
+    M2P = factor * Turn;
+  } else {
+    generateRacePower();
+  }
+  // M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
+  // M2P = 1.5 * Turn;
+
+
+  // scale = constrain(abs(error)/maxError, 0, 1);
+
+  // left_target_reactivity = 0.25;
+  // right_target_ractivity = 1.5;
+
+  // // If the error is HUGE, we on a turn, we can go harsh
+  // if(error > 2){
+  //   M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
+  //   M2P = 1.5 * Turn;
+  // } else {
+  //   generateRacePower();
+  // }
+
+} 
+
+
+// ************************************************************************************************* //
+// PID Function
+void generateSweepPower() {
+  // Lowkey does not need to be that complicated
+  generateRacePower();
+} 
 
 // ************************************************************************************************* //
 // function to print values of interest
@@ -377,3 +489,19 @@ void Print() {
   // delay(100); 
 
 } // end Print()
+
+
+void turnOffLEDS() {   // set all leds to black
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB::Black;
+  }
+  FastLED.show();
+}
+
+void turnOnLEDS() { 
+  // set all the leds to white
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB::White;
+  }
+  FastLED.show();
+}
