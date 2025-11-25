@@ -392,8 +392,35 @@ void generateRacePower() {
 // ************************************************************************************************* //
 // PID Function
 void generateLoopPower() {
-  M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
-  M2P = 1.5 * Turn;
+  float absError = abs(error);
+
+  // Linear scaling: small errors → factor ~1, large errors → factor ~2.5
+  float factor = 1.0 + (absError / 3) * 1.5;
+
+  if (error < 0) { // left error, need left turn
+    M1P = 0.5 * Turn;       // left wheel slows moderately
+    M2P = factor * Turn;    // right wheel pushes aggressively
+  } else { // right error
+    M1P = Turn;             // both wheels contribute equally
+    M2P = Turn;
+  }
+  // M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
+  // M2P = 1.5 * Turn;
+
+
+  // scale = constrain(abs(error)/maxError, 0, 1);
+
+  // left_target_reactivity = 0.25;
+  // right_target_ractivity = 1.5;
+
+  // // If the error is HUGE, we on a turn, we can go harsh
+  // if(error > 2){
+  //   M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
+  //   M2P = 1.5 * Turn;
+  // } else {
+  //   generateRacePower();
+  // }
+
 } 
 
 
