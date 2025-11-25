@@ -32,7 +32,7 @@
 
 // Include files needed
 #include <L298NX2.h> // Using "L298N" library found through arduino library manager developed by Andrea Lombardo (https://github.com/AndreaLombardo/L298N)
-
+#include <FastLED.h> // Use LEDs for 
 // ************************************************************************************************* //
 // ************************************************************************************************* //
 // Change Robot Settings here
@@ -42,6 +42,12 @@
 #define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
  
 #define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
+                                           
+#define LED_PIN    46 
+#define NUM_LEDS   5
+#define BRIGHTNESS 75
+
+CRGB leds[NUM_LEDS];
 // ************************************************************************************************* //
 
 // ****** DECLARE PINS HERE  ****** 
@@ -60,9 +66,7 @@ const int S_pin = 13; // Pin connected to Speed potentiometer
 const int P_pin = 12; // Pin connected to P term potentiometer
 const int I_pin = 11; // Pin connected to I term potentiometer
 const int D_pin = 10; // Pin connected to D term potentiometer
-                                                                 
-int led_Pins[] = {46};  // LEDs to indicate what part of calibration you're on and to illuminate the photoresistors
-
+     
 // ****** DECLARE Variables HERE  ****** 
 
 //Variables Potentiometer Reading
@@ -83,7 +87,6 @@ float LDRf[20];
 int LDR[20];    
 int rawPResistorData[20];  
 int totalPhotoResistors = sizeof(LDR_Pin) / sizeof(LDR_Pin[0]);  
-int numLEDs = sizeof(led_Pins) / sizeof(led_Pins[0]); 
 int MxRead, MxIndex, CriteriaForMax;
 int leftHighestPR, highestPResistor, rightHighestPR;
 float AveRead, WeightedAve;   
@@ -106,10 +109,9 @@ Mode mode = Mode::LOOP;
 // setup - runs once
 void setup() {
   Serial.begin(9600);                            // For serial communication set up
-
-  for (int i = 0; i < numLEDs; i++)
-    pinMode(led_Pins[i], OUTPUT);                // Initialize all LEDs to output
-  
+  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip); // Initialize the led strip
+  FastLED.setBrightness(BRIGHTNESS); // Set the brightness (0 - 100)
+ 
   Calibrate();                                   // Calibrate black and white sensing
 
   ReadPotentiometers();                          // Read potentiometer values (Sp, P, I, & D)
@@ -227,8 +229,13 @@ void CalibrateHelper(int numberOfMeasurements, boolean ifCalibratingBlack) {
 
 // Set all LEDs to a certain brightness
 void setLeds(int x) {
-  for (int i = 0; i < numLEDs; i++)
-    digitalWrite(led_Pins[i], x);
+
+  if(x){
+    turnOnLEDS();
+  } else {
+    turnOffLEDS();
+  }
+
 }
 
 // **********Recall your Challenge #1 Code********************************************************************** //
@@ -418,3 +425,18 @@ void Print() {
   // delay(100); 
 
 } // end Print()
+
+
+void turnOffLEDS() {   // set all leds to black
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB::Black;
+  }
+  FastLED.show();
+}
+
+void turnOnLEDS() {   // set all leds to black
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB::White;
+  }
+  FastLED.show();
+}
