@@ -103,7 +103,7 @@ enum class Mode {
     SWEEP,
     RACE
 };
-Mode mode = Mode::LOOP;
+Mode mode = Mode::RACE;
 
 // ************************************************************************************************* //
 // setup - runs once
@@ -121,6 +121,8 @@ void setup() {
 // ************************************************************************************************* //
 // loop - runs/loops forever
 void loop() {
+
+  setLeds(1);
 
   ReadPotentiometers(); // Read potentiometers
 
