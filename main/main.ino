@@ -43,7 +43,7 @@
  
 #define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
                                            
-#define LED_PIN    46 
+#define LED_PIN    21 
 #define NUM_LEDS   5
 #define BRIGHTNESS 75
 
@@ -145,9 +145,11 @@ void generatePower(){
    switch(mode){
     case Mode::LOOP:
       generateLoopPower();
+      break;
     case Mode::SWEEP:
       generateSweepPower();
-    case MODE::RACE:
+      break;
+    case Mode::RACE:
       generateRacePower();
       break;
   }
@@ -357,7 +359,7 @@ double getTurn() {
     PID r;
 
     if(USEPOTENTIOMETERS){
-      r = {kpRead, 0, (float)kDRead * 0.01}
+      r = {kPRead, 0, (float)kDRead * 0.01};
     } else {
       switch(mode){
         case Mode::LOOP:
@@ -366,13 +368,15 @@ double getTurn() {
         case Mode::SWEEP:
           r = {40, 0, 0.2};
           break;
-        case MODE::RACE:
+        case Mode::RACE:
           r = {40, 0, 0.2};
           break;
       }
     }
-      
-    Turn = error * pid.p + (error - lasterror) * pid.d; // PID!!!!!!!!!!!!!
+    kP = r.p;
+    kI = r.i;
+    kD = r.d;
+    Turn = error * r.p + (error - lasterror) * r.d; // PID!!!!!!!!!!!!!
     return Turn;
 }
 
