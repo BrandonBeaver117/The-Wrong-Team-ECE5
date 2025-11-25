@@ -299,54 +299,83 @@ void runMotorAtSpeed(side _side, int speed) {
   }
 }
 
-
-
-// ************************************************************************************************* //
-// Calculate error from photoresistor readings
+// *************************************************************************************************
+// Calculate error based on mode
 void CalcError() {
-  MxRead = -99;
-  AveRead = 0.0;
-  for (int i = 0; i < totalPhotoResistors; i++) { // This loop goes through each photoresistor and stores the photoresistor with the highest value to the variable 'highestPResistor'
-    if (MxRead < LDR[i]) {
-      MxRead = LDR[i];
-      MxIndex = -1 * (i - 3);
-      highestPResistor = (float)i;
-    }
-    AveRead = AveRead + (float)LDR[i] / (float)totalPhotoResistors;
+  if (mode == Mode::SWEEP) {
+        // ===== Mode SWEEP: use middle 3 sensors only =====
+        int leftIdx   = 2;
+        int centerIdx = 3;
+        int rightIdx  = 4;
+
+        int MxReadLocal = -1;
+        int highestPR = centerIdx;
+
+        for (int i = leftIdx; i <= rightIdx; i++) {
+            if (LDR[i] > MxReadLocal) {
+                MxReadLocal = LDR[i];
+                highestPR = i;
+            }
+        }
+
+        float AveReadLocal = (LDR[leftIdx] + LDR[centerIdx] + LDR[rightIdx]) / 3.0;
+        float CriteriaForMax = 1.5;
+
+        if (MxReadLocal > CriteriaForMax * AveReadLocal) {
+            float numerator = LDR[leftIdx] * leftIdx + LDR[centerIdx] * centerIdx + LDR[rightIdx] * rightIdx;
+            float denominator = LDR[leftIdx] + LDR[centerIdx] + LDR[rightIdx];
+            WeightedAve = numerator / denominator;
+
+            float centerPos = centerIdx;
+            if (abs(WeightedAve - centerPos) > 1.5) return; // ignore false readings
+
+            // scale it from -1 to 1 to -3 to 3
+            error = (WeightedAve - centerPos) * 3;
+        }
+  } else {
+      // ===== Modes LOOP & RACE: original 7-sensor calculation =====
+      MxRead = -99;
+      AveRead = 0.0;
+      for (int i = 0; i < totalPhotoResistors; i++) { // This loop goes through each photoresistor and stores the photoresistor with the highest value to the variable 'highestPResistor'
+        if (MxRead < LDR[i]) {
+          MxRead = LDR[i];
+          MxIndex = -1 * (i - 3);
+          highestPResistor = (float)i;
+        }
+        AveRead = AveRead + (float)LDR[i] / (float)totalPhotoResistors;
+      }
+        
+      CriteriaForMax = 1.5; 
+      if (MxRead > CriteriaForMax * AveRead) { // Make sure that the highestPResistor is actually "seeing" a line. What happens if there is no line and we take the photoresistor that happens to have the highest value?
+
+        // Next we assign variables to hold the index of the left and right Photoresistor that has the highest value, though we have to make sure that we aren't checking a Photoresistor that doesn't exist.
+        // Ex: To the left of the left most photoresistor or the right of the right most photoresistor
+        if (highestPResistor != 0)
+          leftHighestPR = highestPResistor - 1;
+        else
+          leftHighestPR = highestPResistor;
+
+        if (highestPResistor != totalPhotoResistors - 1)
+          rightHighestPR = highestPResistor + 1;
+        else
+          rightHighestPR = highestPResistor;
+
+        // Next we take the percentage of "line" each of our left, middle, and right photoresistors sees and then we take the average, which is our error calculation
+        float numerator = (float)(LDR[leftHighestPR] * leftHighestPR) + (float)(LDR[highestPResistor] * highestPResistor) + (float)(LDR[rightHighestPR] * rightHighestPR);
+        float denominator = (float)LDR[leftHighestPR] + (float)LDR[highestPResistor] + (float)LDR[rightHighestPR];
+
+        WeightedAve = ((float)numerator) / denominator;
+
+        // Uh, if the average error is like greater than 3, we just keep whatever error we had last
+        if(abs(WeightedAve - totalPhotoResistors/2) > 3){
+          return;
+        }
+
+        error = (WeightedAve - totalPhotoResistors/2);    
+      }
   }
-  
-  CriteriaForMax = 1.5; 
-  if (MxRead > CriteriaForMax * AveRead) { // Make sure that the highestPResistor is actually "seeing" a line. What happens if there is no line and we take the photoresistor that happens to have the highest value?
+}
 
-    // Next we assign variables to hold the index of the left and right Photoresistor that has the highest value, though we have to make sure that we aren't checking a Photoresistor that doesn't exist.
-    // Ex: To the left of the left most photoresistor or the right of the right most photoresistor
-    if (highestPResistor != 0)
-      leftHighestPR = highestPResistor - 1;
-    else
-      leftHighestPR = highestPResistor;
-
-    if (highestPResistor != totalPhotoResistors - 1)
-      rightHighestPR = highestPResistor + 1;
-    else
-      rightHighestPR = highestPResistor;
-
-    // Next we take the percentage of "line" each of our left, middle, and right photoresistors sees and then we take the average, which is our error calculation
-    float numerator = (float)(LDR[leftHighestPR] * leftHighestPR) + (float)(LDR[highestPResistor] * highestPResistor) + (float)(LDR[rightHighestPR] * rightHighestPR);
-    float denominator = (float)LDR[leftHighestPR] + (float)LDR[highestPResistor] + (float)LDR[rightHighestPR];
-
-    WeightedAve = ((float)numerator) / denominator;
-
-    // Uh, if the average error is like greater than 3, we just keep whatever error we had last
-    if(abs(WeightedAve - totalPhotoResistors/2) > 3){
-      return;
-    }
-
-    error = (WeightedAve - totalPhotoResistors/2);
-
-    
-  }
-  
-} // end CalcError()
 
 // ************************************************************************************************* //
 // get PD values
@@ -399,12 +428,13 @@ void generateLoopPower() {
   // Linear scaling: small errors → factor ~1, large errors → factor ~2.5
   float factor = 1.0 + (absError / 3) * 1.5;
 
-  if (error < 0) { // left error, need left turn
-    M1P = 0.5 * Turn;       // left wheel slows moderately
-    M2P = factor * Turn;    // right wheel pushes aggressively
-  } else { // right error
-    M1P = Turn;             // both wheels contribute equally
-    M2P = Turn;
+  // might need to flip...
+  // we too far to the right, thus we making left turn
+  if (error > 0) {
+    M1P = -0.5 * Turn;     
+    M2P = factor * Turn;
+  } else {
+    generateRacePower()
   }
   // M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
   // M2P = 1.5 * Turn;
