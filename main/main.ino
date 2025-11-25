@@ -37,14 +37,23 @@
 // ************************************************************************************************* //
 // Change Robot Settings here
 
-#define PRINTALLDATA        1  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
+// Modes for our bot
+enum class Mode {
+    LOOP,
+    SWEEP,
+    RACE
+};
+
+Mode mode = Mode::RACE;
+
+#define PRINTALLDATA        0  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
                                 // !! Turn to 0 when running robot untethered
 #define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
  
 #define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
                                            
 #define LED_PIN    21 
-#define NUM_LEDS   5
+#define NUM_LEDS   7
 #define BRIGHTNESS 75
 
 CRGB leds[NUM_LEDS];
@@ -96,14 +105,6 @@ int M1SpeedtoMotor, M2SpeedtoMotor;
 int Turn, M1P = 0, M2P = 0;
 float error, lasterror = 0, sumerror = 0;
 float kP, kI, kD;
-
-// Modes for our bot
-enum class Mode {
-    LOOP,
-    SWEEP,
-    RACE
-};
-Mode mode = Mode::RACE;
 
 // ************************************************************************************************* //
 // setup - runs once
@@ -434,7 +435,7 @@ void generateLoopPower() {
     M1P = -0.5 * Turn;     
     M2P = factor * Turn;
   } else {
-    generateRacePower()
+    generateRacePower();
   }
   // M1P = -0.25 * Turn;       // One motor becomes slower and the other faster
   // M2P = 1.5 * Turn;
