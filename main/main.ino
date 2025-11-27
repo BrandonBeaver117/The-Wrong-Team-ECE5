@@ -46,15 +46,28 @@ enum class Mode {
 
 Mode mode = Mode::RACE;
 
-#define PRINTALLDATA        0  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
+#define PRINTALLDATA        1  // Turn to 1  to prints ALL the data when changed to 1, Could be useful for debugging =)
                                 // !! Turn to 0 when running robot untethered
 #define NOMINALSPEED        100 // This is the base speed for both motors, can also be increased by using potentiometers
- 
+
+#define BRIGHTNESS          50 // Brightness for LEDs
 #define USEPOTENTIOMETERS   1 // Do we want to use the potentiometers, or hardcode our pid vals
-                                           
+                       
+struct SPID {
+    int s;
+    int p;
+    int i;
+    float d;
+};
+SPID tuning = {0, 0, 0, 0};
+
+// GO TO presetTunings() to change the tuning
+
+
+// Other constants
 #define LED_PIN    21 
 #define NUM_LEDS   10
-#define BRIGHTNESS 50
+
 
 CRGB leds[NUM_LEDS];
 // ************************************************************************************************* //
@@ -78,16 +91,7 @@ const int D_pin = 10; // Pin connected to D term potentiometer
      
 // ****** DECLARE Variables HERE  ****** 
 
-//Variables Potentiometer Reading
-int SpRead = 0; // speed increase
-int Sp_range = 100; // potentiometer increase in speed from -range to +range
-
-
-// Tuned vals:
-// Speed: 100, P: 47, D: 0.2
-int kPRead = 0; // proportional gain
-int kIRead = 0; // integral gain
-int kDRead = 0; // derivative gain
+const int Sp_range = 100;
 
 // Variables for Calibration and Error Calculation
 float Mn[20]; 
@@ -104,7 +108,6 @@ float AveRead, WeightedAve;
 int M1SpeedtoMotor, M2SpeedtoMotor;
 int Turn, M1P = 0, M2P = 0;
 float error, lasterror = 0, sumerror = 0;
-float kP, kI, kD;
 
 // ************************************************************************************************* //
 // setup - runs once
@@ -114,8 +117,10 @@ void setup() {
   FastLED.setBrightness(BRIGHTNESS); // Set the brightness (0 - 100)
  
   Calibrate();                                   // Calibrate black and white sensing
-
-  ReadPotentiometers();                          // Read potentiometer values (Sp, P, I, & D)
+  presetTuning();
+  #if USEPOTENTIOMETERS
+    ReadPotentiometers();                          // Read potentiometer values (Sp, P, I, & D)
+  #endif
 
 } // end setup()
 
@@ -125,7 +130,9 @@ void loop() {
 
   setLeds(1);
 
-  ReadPotentiometers(); // Read potentiometers
+  #if USEPOTENTIOMETERS
+    ReadPotentiometers(); // Read potentiometers
+  #endif
 
   ReadPhotoResistors(); // Read photoresistors 
 
@@ -137,11 +144,11 @@ void loop() {
 
   RunMotors();          // Runs motors
   
-  if (PRINTALLDATA)     // If PRINTALLDATA Enabled, Print all the data
-    Print();         
+  #if (PRINTALLDATA)     // If PRINTALLDATA Enabled, Print all the data
+    Print();      
+  #endif   
   
 } // end loop()
-
 
 
 void generatePower(){
@@ -157,6 +164,31 @@ void generatePower(){
       break;
   }
   lasterror = error;
+}
+
+void presetTuning(){
+  // Change preset tunings here
+  // D should be less than 1 unless u have a VERY good reason
+  switch(mode){
+    case Mode::LOOP:
+      tuning.s = 100;
+      tuning.p = 47;
+      tuning.i = 0;
+      tuning.d = 0.2;
+      break;
+    case Mode::SWEEP:
+      tuning.s = 100;
+      tuning.p = 47;
+      tuning.i = 0;
+      tuning.d = 0.2;
+      break;
+    case Mode::RACE:
+       tuning.s = 100;
+      tuning.p = 47;
+      tuning.i = 0;
+      tuning.d = 0.2;
+      break;
+  }
 }
 
 // ************************************************************************************************* //
@@ -249,12 +281,15 @@ void ReadPotentiometers() {
   // Call on user-defined function to read Potentiometer values
 
   // Potentiometer range from -Sp_range to Sp_range.
-  SpRead = ReadPotentiometerHelper(S_pin, 0, 4095, -Sp_range, Sp_range); // We want to read a potentiometer for S_pin with resolution from 0 to 1023 
+  int SpRead = ReadPotentiometerHelper(S_pin, 0, 4095, -Sp_range, Sp_range); // We want to read a potentiometer for S_pin with resolution from 0 to 1023 
   
-  kPRead = ReadPotentiometerHelper(P_pin, 0, 4095, 0, 100); // We want to read a potentiometer for P_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
-  kIRead = ReadPotentiometerHelper(I_pin, 0, 4095, 0, 100); // We want to read a potentiometer for I_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
-  kDRead = ReadPotentiometerHelper(D_pin, 0, 4095, 0, 100); // We want to read a potentiometer for D_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
+  int kPRead = ReadPotentiometerHelper(P_pin, 0, 4095, 0, 100); // We want to read a potentiometer for P_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
+  //kIRead = ReadPotentiometerHelper(I_pin, 0, 4095, 0, 100); // We want to read a potentiometer for I_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
+  int kDRead = ReadPotentiometerHelper(D_pin, 0, 4095, 0, 100); // We want to read a potentiometer for D_pin with resolution from 0 to 1023 and potentiometer range from 0 to 100.
 
+  tuning.s = SpRead;
+  tuning.p = kPRead;
+  tuning.d = (float)kDRead * 0.01;
 } // end ReadPotentiometers()
 
 int ReadPotentiometerHelper(int pin, int min_resolution, int max_resolution, int min_potentiometer, int max_potentiometer) {
@@ -275,8 +310,8 @@ void ReadPhotoResistors() {
 // **********Recall your Challenge #3 Code********************************************************************** //
 // function to start motors using nominal speed + speed addition from potentiometer
 void RunMotors() {
-  M1SpeedtoMotor = min(NOMINALSPEED + SpRead + M1P, 255); // limits speed to 255
-  M2SpeedtoMotor = min(NOMINALSPEED + SpRead + M2P, 255); // remember M1Sp & M2Sp is defined at beginning of code (default 60)
+  M1SpeedtoMotor = min(NOMINALSPEED + tuning.s + M1P, 255); // limits speed to 255
+  M2SpeedtoMotor = min(NOMINALSPEED + tuning.s + M2P, 255); // remember M1Sp & M2Sp is defined at beginning of code (default 60)
   
   runMotorAtSpeed(LEFT, -M2SpeedtoMotor); // run right motor 
   runMotorAtSpeed(RIGHT, M1SpeedtoMotor); // run left motor
@@ -381,34 +416,11 @@ void CalcError() {
 // ************************************************************************************************* //
 // get PD values
 
-struct PID {
-    int p;
-    int i;
-    float d;
-};
+
 
 double getTurn() {
-    PID r;
 
-    if(USEPOTENTIOMETERS){
-      r = {kPRead, 0, (float)kDRead * 0.01};
-    } else {
-      switch(mode){
-        case Mode::LOOP:
-          r = {40, 0, 0.2};
-          break;
-        case Mode::SWEEP:
-          r = {40, 0, 0.2};
-          break;
-        case Mode::RACE:
-          r = {40, 0, 0.2};
-          break;
-      }
-    }
-    kP = r.p;
-    kI = r.i;
-    kD = r.d;
-    Turn = error * r.p + (error - lasterror) * r.d; // PID!!!!!!!!!!!!!
+    Turn = error * tuning.p + (error - lasterror) * tuning.d; // PID!!!!!!!!!!!!!
     return Turn;
 }
 
@@ -467,7 +479,7 @@ void generateSweepPower() {
 // ************************************************************************************************* //
 // function to print values of interest
 void Print() {
-  Serial.print(" Sp: " + String(SpRead) + " P: " + String(kP) + " I: " + String(kI) + " D: " + String(kD) + "  PResistor Val : "); // Prints PID settings
+  Serial.print(" Sp: " + String(tuning.s) + " P: " + String(tuning.p) + " I: " + String(tuning.i) + " D: " + String(tuning.d) + "  PResistor Val : "); // Prints PID settings
 
   for (int i = 0; i < totalPhotoResistors; i++) { // Printing the photo resistor reading values one by one
     Serial.print(LDR[i]);
