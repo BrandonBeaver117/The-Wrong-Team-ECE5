@@ -64,12 +64,6 @@ SPID tuning = {0, 0, 0, 0};
 // GO TO presetTunings() to change the tuning
 
 
-// Other constants
-#define LED_PIN    21 
-#define NUM_LEDS   10
-
-
-CRGB leds[NUM_LEDS];
 // ************************************************************************************************* //
 
 // ****** DECLARE PINS HERE  ****** 
