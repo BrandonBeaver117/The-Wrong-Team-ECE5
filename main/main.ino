@@ -83,7 +83,7 @@ const int P_pin = 12; // Pin connected to P term potentiometer
 const int I_pin = 11; // Pin connected to I term potentiometer
 const int D_pin = 10; // Pin connected to D term potentiometer
                                                                  
-int led_Pins[] = {46};  // LEDs to indicate what part of calibration you're on and to illuminate the photoresistors
+int led_Pins[] = {46, 45};  // LEDs to indicate what part of calibration you're on and to illuminate the photoresistors
 
 // ****** DECLARE Variables HERE  ****** 
 
