@@ -32,7 +32,7 @@
 
 // Include files needed
 #include <L298NX2.h> // Using "L298N" library found through arduino library manager developed by Andrea Lombardo (https://github.com/AndreaLombardo/L298N)
-#include <FastLED.h> // Use LEDs for 
+
 // ************************************************************************************************* //
 // ************************************************************************************************* //
 // Change Robot Settings here
@@ -88,7 +88,9 @@ const int S_pin = 13; // Pin connected to Speed potentiometer
 const int P_pin = 12; // Pin connected to P term potentiometer
 const int I_pin = 11; // Pin connected to I term potentiometer
 const int D_pin = 10; // Pin connected to D term potentiometer
-     
+                                                                 
+int led_Pins[] = {46};  // LEDs to indicate what part of calibration you're on and to illuminate the photoresistors
+
 // ****** DECLARE Variables HERE  ****** 
 
 const int Sp_range = 100;
@@ -100,6 +102,7 @@ float LDRf[20];
 int LDR[20];    
 int rawPResistorData[20];  
 int totalPhotoResistors = sizeof(LDR_Pin) / sizeof(LDR_Pin[0]);  
+int numLEDs = sizeof(led_Pins) / sizeof(led_Pins[0]); 
 int MxRead, MxIndex, CriteriaForMax;
 int leftHighestPR, highestPResistor, rightHighestPR;
 float AveRead, WeightedAve;   
@@ -113,9 +116,10 @@ float error, lasterror = 0, sumerror = 0;
 // setup - runs once
 void setup() {
   Serial.begin(9600);                            // For serial communication set up
-  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip); // Initialize the led strip
-  FastLED.setBrightness(BRIGHTNESS); // Set the brightness (0 - 100)
- 
+
+  for (int i = 0; i < numLEDs; i++)
+    pinMode(led_Pins[i], OUTPUT);                // Initialize all LEDs to output
+  
   Calibrate();                                   // Calibrate black and white sensing
   presetTuning();
   #if USEPOTENTIOMETERS
@@ -266,13 +270,8 @@ void CalibrateHelper(int numberOfMeasurements, boolean ifCalibratingBlack) {
 
 // Set all LEDs to a certain brightness
 void setLeds(int x) {
-
-  if(x){
-    turnOnLEDS();
-  } else {
-    turnOffLEDS();
-  }
-
+  for (int i = 0; i < numLEDs; i++)
+    digitalWrite(led_Pins[i], x);
 }
 
 // **********Recall your Challenge #1 Code********************************************************************** //
@@ -501,19 +500,3 @@ void Print() {
   // delay(100); 
 
 } // end Print()
-
-
-void turnOffLEDS() {   // set all leds to black
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CRGB::Black;
-  }
-  FastLED.show();
-}
-
-void turnOnLEDS() { 
-  // set all the leds to white
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CRGB::White;
-  }
-  FastLED.show();
-}
